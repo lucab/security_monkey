@@ -62,8 +62,18 @@ class SecurityGroup(Watcher):
 
                 try:
                     rec2 = connect(account, 'ec2', region=region)
+                    # Retrieve security groups here
                     sgs = self.wrap_aws_rate_limited_call(
                         rec2.get_all_security_groups
+                    )
+                    # We fetch tags here to later correlate instances
+                    tags = self.wrap_aws_rate_limited_call(
+                        rec2.get_all_tags
+                    )
+                    # Retrieve all instances
+                    instances = self.wrap_aws_rate_limited_call(
+                        rec2.get_only_instances,
+                        max_results=25
                     )
                 except Exception as e:
                     if region.name not in TROUBLE_REGIONS:
@@ -72,6 +82,7 @@ class SecurityGroup(Watcher):
                     continue
 
                 app.logger.debug("Found {} {}".format(len(sgs), self.i_am_plural))
+
                 for sg in sgs:
 
                     if self.check_ignore_list(sg.name):
@@ -84,8 +95,10 @@ class SecurityGroup(Watcher):
                         "vpc_id": sg.vpc_id,
                         "owner_id": sg.owner_id,
                         "region": sg.region.name,
-                        "rules": []
+                        "rules": [],
+                        "assigned_to": None
                     }
+
                     for rule in sg.rules:
                         for grant in rule.grants:
                             rule_config = {
@@ -99,6 +112,21 @@ class SecurityGroup(Watcher):
                             }
                             item_config['rules'].append(rule_config)
                     item_config['rules'] = sorted(item_config['rules'])
+
+
+                    # Correlate instances with their name tags
+                    assign_inst = []
+                    for i in instances:
+                        if sg.id not in [x.id for x in i.groups]:
+                            continue
+                        inst_tags = [x.value for x in tags if x.name == "Name" and x.res_id == i.id]
+                        (inst_name,) = inst_tags
+                        if inst_name:
+                            assign_inst.append("{0} ({1})".format(i.id, inst_name))
+                        else:
+                            assign_inst.append("{0}".format(i.id))
+                    if assign_inst:
+                        item_config["assigned_to"] = assign_inst
 
                     # Issue 40: Security Groups can have a name collision between EC2 and
                     # VPC or between different VPCs within a given region.
