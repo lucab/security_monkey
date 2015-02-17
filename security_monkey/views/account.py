@@ -70,7 +70,8 @@ class AccountGetPutDelete(AuthenticatedService):
         if auth:
             return retval
 
-        result = Account.query.filter(Account.id == account_id).first()
+        user = self.auth_dict['user']
+        result = Account.query.join(User, Account.sm_user).filter(User.email == user).filter(Account.id == account_id).first()
 
         account_marshaled = marshal(result.__dict__, ACCOUNT_FIELDS)
         account_marshaled['auth'] = self.auth_dict
@@ -133,7 +134,8 @@ class AccountGetPutDelete(AuthenticatedService):
         self.reqparse.add_argument('third_party', required=False, type=bool, help='Determines whether this account is a known friendly third party account.', location='json')
         args = self.reqparse.parse_args()
 
-        account = Account.query.filter(Account.id == account_id).first()
+        user = self.auth_dict['user']
+        account = Account.query.join(User, Account.sm_user).filter(User.email == user).filter(Account.id == account_id).first()
         if account:
             account.name = args['name']
             account.s3_name = args['s3_name']
@@ -184,6 +186,12 @@ class AccountGetPutDelete(AuthenticatedService):
         auth, retval = __check_auth__(self.auth_dict)
         if auth:
             return retval
+
+        # Check if user has access to this AWS account
+        user = self.auth_dict['user']
+        account = Account.query.join(User, Account.sm_user).filter(User.email == user).filter(Account.id == account_id).first()
+        if not account:
+            return {'status': 'error. Account ID not found.'}, 404
 
         # Need to unsubscribe any users first:
         users = User.query.filter(User.accounts.any(Account.id == account_id)).all()
@@ -264,6 +272,8 @@ class AccountPostList(AuthenticatedService):
         notes = args.get('notes', None)
         active = args.get('active', True)
         third_party = args.get('third_party', False)
+        username = self.auth_dict['user']
+        user = User.query.filter(User.email == username).one()
 
         account = Account()
         account.name = name
@@ -272,6 +282,7 @@ class AccountPostList(AuthenticatedService):
         account.notes = notes
         account.active = active
         account.third_party = third_party
+        account.sm_user.append(user)
         db.session.add(account)
         db.session.commit()
 
@@ -337,7 +348,8 @@ class AccountPostList(AuthenticatedService):
         page = args.pop('page', None)
         count = args.pop('count', None)
 
-        result = Account.query.order_by(Account.id).paginate(page, count, error_out=False)
+        user = self.auth_dict['user']
+        result = Account.query.join(User, Account.sm_user).filter(User.email == user).order_by(Account.id).paginate(page, count, error_out=False)
 
         items = []
         for account in result.items:
