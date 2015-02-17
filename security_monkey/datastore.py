@@ -95,7 +95,7 @@ class User(db.Model, UserMixin):
     confirmed_at = db.Column(db.DateTime())
     daily_audit_email = Column(Boolean())
     change_reports = Column(String(32))  # All, OnlyWithIssues, None
-    accounts = relationship("Account", secondary=association_table)
+    accounts = relationship("Account", secondary=association_table, backref="sm_user")
     item_audits = relationship("ItemAudit", uselist=False, backref="user")
     revision_comments = relationship("ItemRevisionComment", backref="user")
     item_comments = relationship("ItemComment", backref="user")
