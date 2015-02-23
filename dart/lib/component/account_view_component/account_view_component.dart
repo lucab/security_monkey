@@ -7,8 +7,11 @@ part of security_monkey;
     useShadowDom: false
 )
 class AccountViewComponent implements ScopeAware {
+
     RouteProvider routeProvider;
     Router router;
+    List<User> users = new List<User>();
+    List<String> owners = new List<String>();
     Account account;
     bool create = false;
     bool _as_loaded = false;
@@ -17,12 +20,20 @@ class AccountViewComponent implements ScopeAware {
     ObjectStore store;
 
     AccountViewComponent(this.routeProvider, this.router, this.store) {
+        //TODO: directly use 'account.owners' and ng-options
+        //      instead of 'owners' (List<int> vs List<String>)
         this.store = store;
+        store.customQueryList(User, new CustomRequestParams(method: "GET", url: "$API_HOST/users", withCredentials: true)).then((List<User> userlist) {
+            this.users = userlist;
+        });
         // If the URL has an ID, then let's view/edit
         if (routeProvider.parameters.containsKey("accountid")) {
             store.one(Account, routeProvider.parameters['accountid']).then((Account account) {
                 this.account = account;
                 _as_loaded = true;
+                for (int o in account.owners) {
+                    this.owners.add(o.toString());
+                }
             });
             create = false;
         } else {
@@ -45,6 +56,8 @@ class AccountViewComponent implements ScopeAware {
     }
 
     void saveAccount() {
+        this.account.owners.clear();
+        this.owners.forEach((o) => this.account.owners.add(int.parse(o)));
         if (create) {
             this.store.create(this.account).then((CommandResponse r) {
                 int id = r.content['id'];
@@ -55,6 +68,8 @@ class AccountViewComponent implements ScopeAware {
         } else {
             this.store.update(this.account);
         }
+        print("o: ${this.owners}");
+        print("ao: ${this.account.owners}");
     }
 
     /// Users can just make an account inactive.
@@ -63,6 +78,10 @@ class AccountViewComponent implements ScopeAware {
         this.store.delete(this.account).then((_) {
             router.go('settings', {});
         });
+    }
+
+    bool isUserOwner(User user) {
+        return this.account.owners.any((int id) => (id == user.id));
     }
 
 }
