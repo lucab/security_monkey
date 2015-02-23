@@ -10,6 +10,7 @@ class Account {
     String notes;
     bool _active;
     bool _third_party;
+    List<int> owners = new List<int>();
 
     Account();
 
@@ -38,6 +39,9 @@ class Account {
         s3_name = data['s3_name'];
         number = data['number'];
         notes = data['notes'];
+        if (data['owners']!= null) {
+            data['owners'].forEach((o) => owners.add(o));
+        }
     }
 
     String toJson() {
@@ -48,7 +52,8 @@ class Account {
             "name": name,
             "s3_name": s3_name,
             "number": number,
-            "notes": notes
+            "notes": notes,
+            "owners": owners
         };
         return JSON.encode(objmap);
     }
