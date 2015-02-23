@@ -170,3 +170,6 @@ from security_monkey.views.auditor_settings import AuditorSettingsGet
 from security_monkey.views.auditor_settings import AuditorSettingsPut
 api.add_resource(AuditorSettingsGet, '/api/1/auditorsettings')
 api.add_resource(AuditorSettingsPut, '/api/1/auditorsettings/<int:as_id>')
+
+from security_monkey.views.users import UsersGet
+api.add_resource(UsersGet, '/api/1/users')

@@ -117,6 +117,11 @@ AUDITORSETTING_FIELDS = {
     'issue_text': fields.String
 }
 
+USERS_FIELDS = {
+    'id': fields.Integer,
+    'email': fields.String,
+    'active': fields.Boolean,
+}
 
 class AuthenticatedService(Resource):
     def __init__(self):
