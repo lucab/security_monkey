@@ -57,6 +57,10 @@ class AccountGetPutDelete(AuthenticatedService):
                     active: true,
                     id: 1,
                     s3_name: "example_name",
+                    owners: [
+                         1,
+                         2
+                     ],
                     auth: {
                         authenticated: true,
                         user: "user@example.com"
@@ -65,6 +69,7 @@ class AccountGetPutDelete(AuthenticatedService):
 
             :statuscode 200: no error
             :statuscode 401: Authentication failure. Please login.
+            :statuscode 404: error. Account ID not found.
         """
         auth, retval = __check_auth__(self.auth_dict)
         if auth:
@@ -73,8 +78,14 @@ class AccountGetPutDelete(AuthenticatedService):
         user = self.auth_dict['user']
         result = Account.query.join(User, Account.sm_user).filter(User.email == user).filter(Account.id == account_id).first()
 
+        if not result:
+            return {'status': 'error. Account ID not found.'}, 404
+
         account_marshaled = marshal(result.__dict__, ACCOUNT_FIELDS)
         account_marshaled['auth'] = self.auth_dict
+        account_marshaled['owners'] = []
+        for owner in result.sm_user:
+            account_marshaled['owners'].append(owner.id)
 
         return account_marshaled, 200
 
@@ -98,7 +109,11 @@ class AccountGetPutDelete(AuthenticatedService):
                     'number': '0123456789',
                     'notes': 'this account is for ...',
                     'active': true,
-                    'third_party': false
+                    'third_party': false,
+                    'owners': [
+                         1,
+                         2
+                     ]
                 }
 
             **Example Response**:
@@ -115,11 +130,16 @@ class AccountGetPutDelete(AuthenticatedService):
                     'number': '0123456789',
                     'notes': 'this account is for ...',
                     'active': true,
-                    'third_party': false
+                    'third_party': false,
+                    'owners': [
+                         1,
+                         2
+                     ]
                 }
 
             :statuscode 200: no error
             :statuscode 401: Authentication Error. Please Login.
+            :statuscode 404: error. Account ID not found.
         """
 
         auth, retval = __check_auth__(self.auth_dict)
@@ -132,10 +152,14 @@ class AccountGetPutDelete(AuthenticatedService):
         self.reqparse.add_argument('notes', required=False, type=unicode, help='Add context.', location='json')
         self.reqparse.add_argument('active', required=False, type=bool, help='Determines whether this account should be interrogated by security monkey.', location='json')
         self.reqparse.add_argument('third_party', required=False, type=bool, help='Determines whether this account is a known friendly third party account.', location='json')
+        self.reqparse.add_argument('owners', required=False, type=list, help='Specify additional users who can access this account (by numeric ID).', location='json', default=[])
         args = self.reqparse.parse_args()
 
-        user = self.auth_dict['user']
-        account = Account.query.join(User, Account.sm_user).filter(User.email == user).filter(Account.id == account_id).first()
+        username = self.auth_dict['user']
+        creator = User.query.filter(User.email == username).one()
+        owners_id = [i for i in args['owners']  if isinstance(i, int)] + [creator.id]
+        owners = User.query.filter(User.id.in_(owners_id)).all()
+        account = Account.query.join(User, Account.sm_user).filter(User.email == username).filter(Account.id == account_id).first()
         if account:
             account.name = args['name']
             account.s3_name = args['s3_name']
@@ -143,11 +167,15 @@ class AccountGetPutDelete(AuthenticatedService):
             account.notes = args['notes']
             account.active = args['active']
             account.third_party = args['third_party']
+            account.sm_user = owners
             db.session.add(account)
             db.session.commit()
 
             updated_account = Account.query.filter(Account.id == account_id).first()
             marshaled_account = marshal(updated_account.__dict__, ACCOUNT_FIELDS)
+            marshaled_account['owners'] = []
+            for owner in updated_account.sm_user:
+                marshaled_account['owners'].append(owner.id)
             marshaled_account['auth'] = self.auth_dict
         else:
             return {'status': 'error. Account ID not found.'}, 404
@@ -182,6 +210,7 @@ class AccountGetPutDelete(AuthenticatedService):
 
             :statuscode 202: accepted
             :statuscode 401: Authentication Error. Please Login.
+            :statuscode 404: error. Account ID not found.
         """
         auth, retval = __check_auth__(self.auth_dict)
         if auth:
@@ -248,7 +277,11 @@ class AccountPostList(AuthenticatedService):
                     'number': '0123456789',
                     'notes': 'this account is for ...',
                     'active': true,
-                    'third_party': false
+                    'third_party': false,
+                    'owners': [
+                         1,
+                         2
+                     ]
                 }
 
             :statuscode 201: created
@@ -264,6 +297,7 @@ class AccountPostList(AuthenticatedService):
         self.reqparse.add_argument('notes', required=False, type=unicode, help='Add context.', location='json')
         self.reqparse.add_argument('active', required=False, type=bool, help='Determines whether this account should be interrogated by security monkey.', location='json')
         self.reqparse.add_argument('third_party', required=False, type=bool, help='Determines whether this account is a known friendly third party account.', location='json')
+        self.reqparse.add_argument('owners', required=False, type=list, help='Specify additional users who can access this account (by numeric ID).', location='json', default=[])
         args = self.reqparse.parse_args()
 
         name = args['name']
@@ -272,8 +306,17 @@ class AccountPostList(AuthenticatedService):
         notes = args.get('notes', None)
         active = args.get('active', True)
         third_party = args.get('third_party', False)
+        sm_users = args.get('owners', [])
+
         username = self.auth_dict['user']
-        user = User.query.filter(User.email == username).one()
+        creator = User.query.filter(User.email == username).one()
+        owners_id = [i for i in sm_users if isinstance(i, int)] + [creator.id]
+        
+        owners = User.query.filter(User.id.in_(owners_id))
+        import sys
+        sys.stderr.write("%s\n" % owners)
+        owners = owners.all()
+
 
         account = Account()
         account.name = name
@@ -282,12 +325,15 @@ class AccountPostList(AuthenticatedService):
         account.notes = notes
         account.active = active
         account.third_party = third_party
-        account.sm_user.append(user)
+        account.sm_user = owners
         db.session.add(account)
         db.session.commit()
 
         updated_account = Account.query.filter(Account.id == account.id).first()
         marshaled_account = marshal(updated_account.__dict__, ACCOUNT_FIELDS)
+        marshaled_account['owners'] = []
+        for owner in updated_account.sm_user:
+             marshaled_account['owners'].append(owner.id)
         marshaled_account['auth'] = self.auth_dict
         return marshaled_account, 201
 
@@ -323,7 +369,11 @@ class AccountPostList(AuthenticatedService):
                             number: "111111111111",
                             active: true,
                             id: 1,
-                            s3_name: "example_name"
+                            s3_name: "example_name",
+                            owners: [
+                                1,
+                                2
+                            ]
                         },
                     ],
                     total: 1,

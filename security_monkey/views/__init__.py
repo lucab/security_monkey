@@ -95,7 +95,8 @@ ACCOUNT_FIELDS = {
     'number': fields.String,
     'notes': fields.String,
     'active': fields.Boolean,
-    'third_party': fields.Boolean
+    'third_party': fields.Boolean,
+    'owners': fields.List(fields.Integer)
 }
 
 WHITELIST_FIELDS = {
