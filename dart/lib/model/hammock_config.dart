@@ -10,13 +10,14 @@ import 'Revision.dart';
 import 'RevisionComment.dart';
 import 'ItemComment.dart';
 import 'UserSetting.dart';
+import 'User.dart';
 import 'ignore_entry.dart';
 
 @MirrorsUsed(
         targets: const[
             Account, IgnoreEntry, Issue, AuditorSetting,
             Item, ItemComment, NetworkWhitelistEntry,
-            Revision, RevisionComment, UserSetting],
+            Revision, RevisionComment, UserSetting, User],
         override: '*')
 import 'dart:mirrors';
 
@@ -29,6 +30,7 @@ final serializeItem = serializer("items", ["id", "technology", "region", "accoun
 final serializeRevisionComment = serializer("comments", ["text"]);
 final serializeItemComment = serializer("comments", ["text"]);
 final serializeUserSetting = serializer("settings", ["daily_audit_email", "change_report_setting", "accounts"]);
+final serializeUser = serializer("users", ["id", "email", "active"]);
 final serializeNetworkWhitelistEntry = serializer("whitelistcidrs", ["id", "name", "notes", "cidr"]);
 final serializeIgnoreListEntry = serializer("ignorelistentries", ["id", "prefix", "notes", "technology"]);
 final serializeAuditorSettingEntry = serializer("auditorsettings", ["account", "technology", "issue", "count", "disabled", "id"]);
@@ -99,6 +101,13 @@ createHammockConfig(Injector inj) {
                         "query": deserializeItemComment
                     }
                 },
+                "users": {
+                    "type": User,
+                    "serializer": serializeUser,
+                    "deserializer": {
+                        "query": deserializeUser
+                    }
+                },
                 "settings": {
                     "type": UserSetting,
                     "serializer": serializeUserSetting,
@@ -135,6 +144,7 @@ deserializeItem(r) => new Item.fromMap(r.content);
 deserializeRevisionComment(r) => new RevisionComment.fromMap(r.content);
 deserializeItemComment(r) => new ItemComment.fromMap(r.content);
 deserializeUserSetting(r) => new UserSetting.fromMap(r.content);
+deserializeUser(r) => new User.fromMap(r.content);
 deserializeNetworkWhitelistEntry(r) => new NetworkWhitelistEntry.fromMap(r.content);
 deserializeIgnoreListEntry(r) => new IgnoreEntry.fromMap(r.content);
 deserializeAuditorSettingEntry(r) => new AuditorSetting.fromMap(r.content);
