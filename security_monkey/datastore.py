@@ -54,7 +54,7 @@ class Account(db.Model):
     number = Column(String(12))  # Not stored as INT because of potential leading-zeros.
     items = relationship("Item", backref="account")
     issue_categories = relationship("AuditorSettings", backref="account")
-
+    role_name = Column(String(256))
 
 class Technology(db.Model):
     """
